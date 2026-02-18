@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Estoque Voz Dupla V4.5</title>
+    <title>Estoque Voz Busca V4.6</title>
     
     <link rel="icon" href="icone.png" type="image/png">
     <link rel="apple-touch-icon" href="icone.png">
@@ -68,7 +68,7 @@
         .card { background: var(--card); padding: 12px; border-radius: 10px; border: 1px solid var(--border); margin-bottom: 12px; transition: all 0.3s; }
         label { font-size: 9px; margin-bottom: 4px; display: block; color: var(--accent); text-transform: uppercase; }
         
-        /* Ajuste geral dos inputs para caber o mic e o X */
+        /* Ajuste geral dos inputs */
         input[type="text"], select { padding: 8px 10px; background-color: var(--highlight); border: 1px solid var(--borda-caixas); border-radius: 6px; font-weight: 700; color: var(--text); font-size: 16px; width: 100%; outline: none; transition: border 0.3s, background-color 0.3s, color 0.3s; }
         input[type="text"]:focus, select:focus { border: 1px solid var(--accent); }
         input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; margin: 0; accent-color: var(--btn-danger); }
@@ -256,7 +256,15 @@
     <div id="search-overlay">
         <div class="search-inner">
             <div style="position: relative; flex: 1;">
-                <input type="text" id="filtroBusca" placeholder="🔍 Buscar..." oninput="filtrarGeral()" style="padding-right: 25px;">
+                <input type="text" id="filtroBusca" placeholder="🔍 Buscar..." oninput="filtrarGeral()" style="padding-right: 55px;">
+                <button class="btn-mic" onclick="toggleMic('busca', event)" id="btn-mic-busca">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
                 <span class="btn-limpar" onclick="limparCampo('filtroBusca')">✖</span>
             </div>
             <select id="filtroSelect" style="max-width: 100px;" onchange="filtrarGeral()">
@@ -287,15 +295,7 @@
             </div>
             <div style="position: relative;">
                 <label>Qtd</label>
-                <input type="text" id="novoQtd" placeholder="Qtd" onclick="abrirCalculadora(this)" readonly style="padding-right: 55px; cursor: pointer;">
-                <button class="btn-mic" onclick="toggleMic('qtd', event)" id="btn-mic-qtd">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                    </svg>
-                </button>
+                <input type="text" id="novoQtd" placeholder="Qtd" onclick="abrirCalculadora(this)" readonly style="padding-right: 25px; cursor: pointer;">
                 <span class="btn-limpar" onclick="limparCampo('novoQtd')">✖</span>
             </div>
             <div>
@@ -412,10 +412,10 @@
             } catch (e) {}
         }
 
-        // --- SISTEMA DE RECONHECIMENTO DE VOZ (DUPLO) ---
+        // --- SISTEMA DE RECONHECIMENTO DE VOZ (BUSCA E PRODUTO) ---
         let recognition = null;
         let isRecording = false;
-        let activeField = null; // 'produto' ou 'qtd'
+        let activeField = null; // 'produto' ou 'busca'
 
         function initSpeech() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -432,18 +432,18 @@
                     if (activeField === 'produto') {
                         document.getElementById('btn-mic-prod').classList.add('ouvindo');
                         document.getElementById('novoProduto').placeholder = "Ouvindo...";
-                    } else if (activeField === 'qtd') {
-                        document.getElementById('btn-mic-qtd').classList.add('ouvindo');
-                        document.getElementById('novoQtd').placeholder = "...";
+                    } else if (activeField === 'busca') {
+                        document.getElementById('btn-mic-busca').classList.add('ouvindo');
+                        document.getElementById('filtroBusca').placeholder = "Ouvindo...";
                     }
                 };
 
                 recognition.onend = function() {
                     isRecording = false;
                     document.getElementById('btn-mic-prod').classList.remove('ouvindo');
-                    document.getElementById('btn-mic-qtd').classList.remove('ouvindo');
+                    document.getElementById('btn-mic-busca').classList.remove('ouvindo');
                     document.getElementById('novoProduto').placeholder = "Item";
-                    document.getElementById('novoQtd').placeholder = "Qtd";
+                    document.getElementById('filtroBusca').placeholder = "🔍 Buscar...";
                     
                     if(activeField === 'produto') autoPreencherUnidade(); 
                     activeField = null;
@@ -459,15 +459,16 @@
                     // Preenche o campo correto
                     if (activeField === 'produto') {
                         document.getElementById('novoProduto').value = textoFinal;
-                    } else if (activeField === 'qtd') {
-                        document.getElementById('novoQtd').value = textoFinal;
+                    } else if (activeField === 'busca') {
+                        document.getElementById('filtroBusca').value = textoFinal;
+                        filtrarGeral(); // Filtra enquanto fala
                     }
                 };
 
                 recognition.onerror = function(event) {
                     isRecording = false;
                     document.getElementById('btn-mic-prod').classList.remove('ouvindo');
-                    document.getElementById('btn-mic-qtd').classList.remove('ouvindo');
+                    document.getElementById('btn-mic-busca').classList.remove('ouvindo');
                     
                     if (event.error === 'not-allowed') {
                         mostrarAlertaElegante("🚫 Acesso negado.\nPermita o uso do microfone no navegador.");
@@ -481,21 +482,18 @@
                 };
             } else {
                 document.getElementById('btn-mic-prod').style.display = 'none'; 
-                document.getElementById('btn-mic-qtd').style.display = 'none'; 
+                document.getElementById('btn-mic-busca').style.display = 'none'; 
             }
         }
 
         function toggleMic(campo, event) {
-            if(event) event.stopPropagation(); // Impede abrir calculadora ao clicar no mic da qtd
+            if(event) event.stopPropagation(); 
             darFeedback();
             
             if (!recognition) { mostrarToast("Navegador sem suporte."); return; }
             
             if (isRecording) {
                 recognition.stop();
-                if (activeField !== campo) {
-                    // Se clicou no outro mic enquanto gravava, espera um pouco e inicia o outro (opcional, aqui só para)
-                }
             } else {
                 activeField = campo;
                 try {
