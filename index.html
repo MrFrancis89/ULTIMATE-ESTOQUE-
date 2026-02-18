@@ -43,7 +43,25 @@
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-        body { font-family: 'Inter', sans-serif; font-weight: 600; max-width: 100%; margin: 0; padding: 10px; background-color: var(--bg); color: var(--text); padding-bottom: 80px; transition: background-color 0.3s, color 0.3s; }
+        body { 
+            font-family: 'Inter', sans-serif; font-weight: 600; max-width: 100%; 
+            margin: 0; padding: 10px; background-color: var(--bg); color: var(--text); 
+            padding-bottom: 80px; transition: background-color 0.3s, color 0.3s; 
+        }
+
+        /* --- IMAGEM DA PIZZA NO FUNDO --- */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            background-image: url('fundo-pizza.jpg');
+            background-size: cover;
+            background-position: center;
+            opacity: 0.05; /* Isso equivale a 95% de transparência */
+            z-index: -1; 
+            pointer-events: none; /* Impede que a imagem atrapalhe os cliques na tela */
+        }
         
         .header-container { display: flex; justify-content: center; align-items: center; position: relative; margin: 10px 0; }
         h1 { color: #FFFFFF; margin: 0; font-weight: 800; font-size: 16px; text-transform: uppercase; transition: color 0.3s; }
@@ -331,9 +349,9 @@
             } catch (e) {}
         }
 
-        // --- SISTEMA DE SWIPE (DESLIZAR) ---
+        // --- SISTEMA DE SWIPE (DESLIZAR) 100% BLINDADO CONTRA CLIQUES FALSOS ---
         let swipeStartX = 0, swipeStartY = 0, swipeCurrentX = 0;
-        let isDragging = false, swipedRow = null;
+        let isSwiping = false, swipedRow = null, justSwiped = false;
 
         function initSwipe() {
             const tbody = document.getElementById("lista-itens");
@@ -346,35 +364,43 @@
                 let tr = e.target.closest('tr');
                 if (!tr) return;
                 
-                if (e.target.type === 'checkbox') {
-                    if (swipedRow && swipedRow !== tr) closeSwipe(swipedRow);
-                    return;
-                }
+                // Ignora cliques no checkbox para não travar marcação
+                if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') return;
 
                 if (swipedRow && swipedRow !== tr) closeSwipe(swipedRow);
 
                 swipeStartX = getClientX(e);
                 swipeStartY = getClientY(e);
-                isDragging = true;
+                isSwiping = false;
+                justSwiped = false;
                 swipeCurrentX = (swipedRow === tr) ? -80 : 0;
                 tr.style.transition = 'none';
-
-                swipeBtn.style.display = 'flex';
-                swipeBtn.style.top = tr.offsetTop + 'px';
-                swipeBtn.style.height = tr.offsetHeight + 'px';
             }, {passive: true});
 
             tbody.addEventListener('touchmove', function(e) {
-                if (!isDragging) return;
                 let tr = e.target.closest('tr');
                 if (!tr) return;
+                if (e.target.tagName === 'INPUT' && e.target.type === 'checkbox') return;
 
                 let deltaX = getClientX(e) - swipeStartX;
                 let deltaY = getClientY(e) - swipeStartY;
 
-                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 5) {
+                // NOVA REGRA DE SEGURANÇA: Tem que arrastar mais de 15px de propósito
+                // Se o dedo só tremer, ele ignora o arrasto e mantém como clique normal.
+                if (!isSwiping && Math.abs(deltaX) > 15 && Math.abs(deltaX) > Math.abs(deltaY)) {
+                    isSwiping = true;
+                }
+
+                if (isSwiping) {
                     if (e.cancelable) e.preventDefault(); 
                     if (document.activeElement) document.activeElement.blur();
+
+                    justSwiped = true;
+                    
+                    // O botão vermelho só aparece DEPOIS que passa pela segurança
+                    swipeBtn.style.display = 'flex';
+                    swipeBtn.style.top = tr.offsetTop + 'px';
+                    swipeBtn.style.height = tr.offsetHeight + 'px';
 
                     let moveX = swipeCurrentX + deltaX;
                     if (moveX > 0) moveX = 0; 
@@ -384,31 +410,36 @@
             }, {passive: false});
 
             tbody.addEventListener('touchend', function(e) {
-                if (!isDragging) return;
-                isDragging = false;
                 let tr = e.target.closest('tr');
                 if (!tr) return;
 
-                let deltaX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - swipeStartX;
-                let finalX = swipeCurrentX + deltaX;
+                if (isSwiping) {
+                    let deltaX = (e.changedTouches ? e.changedTouches[0].clientX : e.clientX) - swipeStartX;
+                    let finalX = swipeCurrentX + deltaX;
 
-                tr.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
-                if (finalX < -40) {
-                    tr.style.transform = `translateX(-80px)`;
-                    swipedRow = tr;
+                    tr.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+                    if (finalX < -40) {
+                        tr.style.transform = `translateX(-80px)`;
+                        swipedRow = tr;
+                        
+                        swipeBtn.onclick = function() {
+                            mostrarConfirmacao("Deseja realmente remover este item?", () => {
+                                tr.remove(); 
+                                salvarDados(); 
+                                atualizarDropdown(); 
+                                mostrarToast("Removido 🗑️");
+                                swipeBtn.style.display = 'none'; 
+                                swipedRow = null;
+                            });
+                        };
+                    } else {
+                        closeSwipe(tr);
+                    }
                     
-                    swipeBtn.onclick = function() {
-                        mostrarConfirmacao("Deseja realmente remover este item?", () => {
-                            tr.remove(); 
-                            salvarDados(); 
-                            atualizarDropdown(); 
-                            mostrarToast("Removido 🗑️");
-                            swipeBtn.style.display = 'none'; 
-                            swipedRow = null;
-                        });
-                    };
+                    // Trava o clique na calculadora/unidade por meio segundo se tiver arrastado
+                    setTimeout(() => { justSwiped = false; }, 300);
                 } else {
-                    closeSwipe(tr);
+                    justSwiped = false; // Foi apenas um clique! Libera o sistema.
                 }
             });
 
@@ -434,7 +465,8 @@
 
         // --- LÓGICA DA CALCULADORA ---
         function abrirCalculadora(inputElement) {
-            if (isDragging || swipedRow) return;
+            // Se o usuário arrastou o dedo, isso impede a calculadora de abrir sem querer!
+            if (justSwiped || swipedRow) return;
 
             darFeedback();
             inputElement.blur(); 
@@ -645,13 +677,11 @@
             tbody.appendChild(tr);
         }
 
-        // --- NOVA FUNÇÃO: SELECIONAR TODOS ---
         function alternarTodos(masterBox) {
             darFeedback();
             let isChecked = masterBox.checked;
             
             document.querySelectorAll("#lista-itens tr").forEach(r => {
-                // Só seleciona a linha se ela estiver visível (respeita o filtro de busca)
                 if (r.style.display !== "none") {
                     let box = r.querySelector("input[type='checkbox']");
                     box.checked = isChecked;
@@ -671,7 +701,6 @@
                 linha.classList.add("linha-marcada"); 
             } else { 
                 linha.classList.remove("linha-marcada");
-                // Se o usuário desmarcar um, a caixa do topo se desmarca para manter a lógica visual
                 document.getElementById('check-todos').checked = false;
             }
             salvarDados(); 
@@ -796,7 +825,6 @@
                 var nome = r.querySelector(".nome-prod").innerText.toLowerCase();
                 r.style.display = (nome.includes(tBusca) && (tSelect === "" || nome === tSelect)) ? "" : "none";
             });
-            // Oculta o botão de "Selecionar Todos" caso o usuário esconda as coisas filtradas
             document.getElementById('check-todos').checked = false;
         }
         
@@ -820,7 +848,7 @@
                 var dados = JSON.parse(localStorage.getItem("estoqueDados_v3") || "[]");
                 dados.forEach(item => { item.q = ""; item.c = false; });
                 localStorage.setItem("estoqueDados_v3", JSON.stringify(dados)); 
-                document.getElementById('check-todos').checked = false; // Desmarca o topo também
+                document.getElementById('check-todos').checked = false;
                 location.reload();
             }, 'sucesso');
         }
