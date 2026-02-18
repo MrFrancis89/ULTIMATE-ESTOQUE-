@@ -264,7 +264,7 @@
         <table id="tabela-estoque">
             <thead>
                 <tr>
-                    <th class="col-check">🛒</th>
+                    <th class="col-check"><input type="checkbox" id="check-todos" onchange="alternarTodos(this)"></th>
                     <th class="col-desc">Descrição</th>
                     <th class="col-qtd">Qtd</th>
                     <th class="col-unid">Unid</th>
@@ -331,7 +331,7 @@
             } catch (e) {}
         }
 
-        // --- SISTEMA DE SWIPE (DESLIZAR) MELHORADO ---
+        // --- SISTEMA DE SWIPE (DESLIZAR) ---
         let swipeStartX = 0, swipeStartY = 0, swipeCurrentX = 0;
         let isDragging = false, swipedRow = null;
 
@@ -346,7 +346,6 @@
                 let tr = e.target.closest('tr');
                 if (!tr) return;
                 
-                // NOVO: Ignora o gesto APENAS se o usuário tocou no Checkbox do carrinho
                 if (e.target.type === 'checkbox') {
                     if (swipedRow && swipedRow !== tr) closeSwipe(swipedRow);
                     return;
@@ -373,12 +372,8 @@
                 let deltaX = getClientX(e) - swipeStartX;
                 let deltaY = getClientY(e) - swipeStartY;
 
-                // Detecta se o movimento é Horizontal (Deslize)
                 if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 5) {
-                    // Previne ações padrão como rolar a tela, abrir teclado ou menus
                     if (e.cancelable) e.preventDefault(); 
-                    
-                    // Se começou a deslizar em cima de uma caixa, nós removemos o foco para ela não abrir
                     if (document.activeElement) document.activeElement.blur();
 
                     let moveX = swipeCurrentX + deltaX;
@@ -439,7 +434,6 @@
 
         // --- LÓGICA DA CALCULADORA ---
         function abrirCalculadora(inputElement) {
-            // SEGURANÇA: Se estiver arrastando a linha (swipe), não abre a calculadora
             if (isDragging || swipedRow) return;
 
             darFeedback();
@@ -651,9 +645,35 @@
             tbody.appendChild(tr);
         }
 
+        // --- NOVA FUNÇÃO: SELECIONAR TODOS ---
+        function alternarTodos(masterBox) {
+            darFeedback();
+            let isChecked = masterBox.checked;
+            
+            document.querySelectorAll("#lista-itens tr").forEach(r => {
+                // Só seleciona a linha se ela estiver visível (respeita o filtro de busca)
+                if (r.style.display !== "none") {
+                    let box = r.querySelector("input[type='checkbox']");
+                    box.checked = isChecked;
+                    if (isChecked) {
+                        r.classList.add("linha-marcada");
+                    } else {
+                        r.classList.remove("linha-marcada");
+                    }
+                }
+            });
+            salvarDados();
+        }
+
         function alternarCheck(box) {
             darFeedback(); var linha = box.parentElement.parentElement;
-            if(box.checked) { linha.classList.add("linha-marcada"); } else { linha.classList.remove("linha-marcada"); }
+            if(box.checked) { 
+                linha.classList.add("linha-marcada"); 
+            } else { 
+                linha.classList.remove("linha-marcada");
+                // Se o usuário desmarcar um, a caixa do topo se desmarca para manter a lógica visual
+                document.getElementById('check-todos').checked = false;
+            }
             salvarDados(); 
         }
 
@@ -776,6 +796,8 @@
                 var nome = r.querySelector(".nome-prod").innerText.toLowerCase();
                 r.style.display = (nome.includes(tBusca) && (tSelect === "" || nome === tSelect)) ? "" : "none";
             });
+            // Oculta o botão de "Selecionar Todos" caso o usuário esconda as coisas filtradas
+            document.getElementById('check-todos').checked = false;
         }
         
         function atualizarDropdown() {
@@ -797,7 +819,9 @@
             mostrarConfirmacao("INICIAR NOVO DIA?\nIsso limpará as quantidades e desmarcará as compras.", () => {
                 var dados = JSON.parse(localStorage.getItem("estoqueDados_v3") || "[]");
                 dados.forEach(item => { item.q = ""; item.c = false; });
-                localStorage.setItem("estoqueDados_v3", JSON.stringify(dados)); location.reload();
+                localStorage.setItem("estoqueDados_v3", JSON.stringify(dados)); 
+                document.getElementById('check-todos').checked = false; // Desmarca o topo também
+                location.reload();
             }, 'sucesso');
         }
 
